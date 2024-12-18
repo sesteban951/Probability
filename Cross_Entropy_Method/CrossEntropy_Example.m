@@ -76,11 +76,12 @@ for i = 1:length(MU)
     Y = eval_normal(domain, MU(i), SIGMA(i));
     nrm = plot(domain, Y, 'r', 'LineWidth', 2);
     mean = xline(MU(i), 'g', 'LineWidth', 2);
-    pause(1.0);
-
+    
     msg = sprintf('Iteration: %d, mu: %.2f, sigma2: %.2f', i, MU(i), SIGMA(i));
     title(msg);
-
+    
+    pause(1.0);
+    
     % remove the previous plot
     if i < length(MU)
         delete(nrm);
