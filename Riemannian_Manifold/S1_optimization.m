@@ -4,18 +4,18 @@
 close all; clear all; clc;
 
 % CE-M points
-N = 50;
-N_elite = 2;
-max_iters = 10;
+N = 100;
+N_elite = 10;   % lower elite size is more aggressive
+max_iters = 10; 
 epsilon = 1E-9;
 
 % goal point
-p = [1, 0.1];
+p = [1, 1];
 
 % initial distribution
-mu = pi;
-sigma2 = 1.5^2;
-var_sacling = 50; % NOTE: this helps with not collapsing to zero too fast
+mu = 5*pi/4;     
+sigma2 = 1.0^2;   % too small and it will collapse to zero fast, too big and it will not converge
+var_sacling = 10; % NOTE: this helps with not collapsing to zero too fast
 
 % iterate until convergence
 iter = 0;
@@ -66,25 +66,33 @@ hold on; axis equal;
 xline(0); yline(0);
 
 % plot the S1 manifold
-N = 500;
+N = 720;
 theta = linspace(0, 2*pi, N);
 S1 = [cos(theta); sin(theta)];
-plot(S1(1,:), S1(2,:), 'k');
+plot(S1(1,:), S1(2,:), 'k', 'LineWidth', 2);
 xlabel('x'); ylabel('y');
 
 % plot the star point
-plot(p(1), p(2), 'bp', 'MarkerSize', 10, 'LineWidth', 2);
-plot([0, p(1)], [0, p(2)], 'k--');
+plot(p(1), p(2), 'mp', 'MarkerSize', 10, 'LineWidth', 2);
+plot([0, p(1)], [0, p(2)], 'm--');
 
 % plot the cost function on the manifold
-% F = cost_function(theta, p);
-% F_manif = 
+F = cost_function(theta', p);
+Fmin = min(F); Fmax = max(F);
+rmin = 1.01; rmax = 1.5;
+m = (rmax - rmin) / (Fmax - Fmin);
+b = rmin - m * Fmin;
+R = zeros(1, N);
+for i = 1:N
+    R(i) = m * F(i) + b;
+end
+plot(R.*cos(theta), R.*sin(theta), 'r','LineWidth', 2);
 
 % plot the final mean
 for i = 1:size_mu(2)
     
     % plot the distribution
-    distirbution = plot(X_hist_cart(:,1,i), X_hist_cart(:,2,i), 'r.', 'MarkerSize', 25);
+    distirbution = plot(X_hist_cart(:,1,i), X_hist_cart(:,2,i), 'bx', 'MarkerSize', 10);
     mean = plot(mu_hist_cart(i,1), mu_hist_cart(i,2), 'gp', 'MarkerSize', 10, 'LineWidth', 2);
 
     msg = sprintf('Iteration: %d, mu: %.2f, sigma2: %.2f', i, mu_hist(i), sigma2);
