@@ -1,5 +1,5 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Langevin dynamics
+% mulitivariate gaussian
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 clear all; close all; clc;
 
@@ -47,25 +47,39 @@ y_range = linspace(mu_avg(2) - 5*sqrt(sigma_avg(2,2)), mu_avg(2) + 5*sqrt(sigma_
 pos = [X(:), Y(:)];
 
 % Compute the Gaussian PDF
-Z = zeros(size(pos, 1), 1);
+Z_GMM = zeros(size(pos, 1), 1);
+Z_Bayesian = zeros(size(pos, 1), 1);
 for i = 1:size(pos, 1)
     
     % Compute the probability density for each point
     x = pos(i, :)';
-    z = normal_pdf(x, mu_list, sigma_list, weights);
-    
+    z_GMM = normal_pdf_GMM(x, mu_list, sigma_list, weights);
+    z_Bayesian = normal_pdf_Bayesian(x, mu_list, sigma_list);
+
     % Reshape the result back to the grid
-    Z(i) = z;
+    Z_GMM(i) = z_GMM;
+    Z_Bayesian(i) = z_Bayesian;
 end
 
 % Reshape Z to match the grid dimensions of X and Y
-Z = reshape(Z, size(X));
+Z_GMM = reshape(Z_GMM, size(X));
+Z_Bayesian = reshape(Z_Bayesian, size(X));
 
 % Plot the surface
 figure;
-surf(X, Y, Z, 'EdgeColor', 'none');
+
+subplot(1,2,1);
+surf(X, Y, Z_GMM, 'EdgeColor', 'none');
 xlabel('x'); ylabel('y'); zlabel('Probability Density');
-title('2D Gaussian Distribution');
+title('Gaussian Mixture Model');
+colormap turbo;
+colorbar;
+view(45, 45); % 3D view angle
+
+subplot(1,2,2);
+surf(X, Y, Z_Bayesian, 'EdgeColor', 'none');
+xlabel('x'); ylabel('y'); zlabel('Probability Density');
+title('Bayesian Fusion of Gaussians');
 colormap turbo;
 colorbar;
 view(45, 45); % 3D view angle
@@ -74,8 +88,8 @@ view(45, 45); % 3D view angle
 % helper functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% probability density function for normal distribution
-function p = normal_pdf(x, mu_list, sigma_list, weights)
+% gaussian mixture model
+function p = normal_pdf_GMM(x, mu_list, sigma_list, weights)
     
     % number of distributions
     n_dists = size(mu_list, 3);
@@ -95,7 +109,38 @@ function p = normal_pdf(x, mu_list, sigma_list, weights)
         diff = x - mu;
 
         % compute the probability density
-        p_i = (1 / (2 * pi * sqrt(det_sigma))) * exp(-0.5 * diff' * inv_sigma * diff) ;
+        d = length(x);
+        p_i = (1 / ((2 * pi)^(d/2) * sqrt(det_sigma))) * exp(-0.5 * diff' * inv_sigma * diff) ;
         p = p + weights(i) * p_i;
     end
+end
+
+% Bayesian fusion of normal distributions
+function p = normal_pdf_Bayesian(x, mu_list, sigma_list)
+
+    % number of distributions
+    n_dists = size(mu_list, 2); % Assuming mu_list is (dim, n_dists)
+    dim = size(mu_list, 1);
+
+    % Compute fused covariance
+    Sigma_inv_sum = zeros(dim);
+    mu_weighted_sum = zeros(dim, 1);
+
+    % compute the equivalent Bayesian fusion
+    for i = 1:n_dists
+        Sigma_i = sigma_list(:, :, i);
+        mu_i = mu_list(:, i); % Adjusted indexing for 2D mu_list
+        Sigma_inv = inv(Sigma_i); % Consider replacing with a numerically stable method
+
+        Sigma_inv_sum = Sigma_inv_sum + Sigma_inv;
+        mu_weighted_sum = mu_weighted_sum + Sigma_inv * mu_i;
+    end
+    Sigma_fused = inv(Sigma_inv_sum); % Consider replacing with a numerically stable method
+    mu_fused = Sigma_fused * mu_weighted_sum;
+
+    % Compute the PDF of the fused Gaussian at x
+    diff = x - mu_fused;
+    d = length(x);
+    norm_const = 1 / ((2*pi)^(d/2) * sqrt(det(Sigma_fused)));
+    p = norm_const * exp(-0.5 * (diff' * (Sigma_inv_sum) * diff)); % Avoid explicit inversion
 end
