@@ -4,9 +4,6 @@
 close all; clear all; clc;
 
 % define the mean and covariance
-% mu = [1; 0];
-% sigma = [1.0 0.0; 
-%          0.0 1.0];
 mu_xlim = 2;
 mu_ylim = 2;
 mu = [rand(1)*2*mu_xlim - mu_xlim; 
@@ -50,10 +47,11 @@ end
 x0 = [0; 0]; % initial point
 
 % Langevin parameters
-alpha = 0.001;                 % time step
-num_steps = 500;          % number of steps
-x = zeros(num_steps, 2);   % initialize Langevin trajectory
-x(1, :) = x0';     % set initial condition
+alpha = 0.004;           % time step
+num_steps = 1000;          % number of steps
+max_step_length = 1.0;   % maximum step length
+x = zeros(num_steps, 2); % initialize Langevin trajectory
+x(1, :) = x0';           % set initial condition
 
 % simulate the Langevin dynamics (realized with Euler-Maruyama)
 for i = 2:num_steps
@@ -64,8 +62,15 @@ for i = 2:num_steps
     % get a noise vector from standard normal distribution
     noise_vec = randn(2, 1);
 
-    % take a Langevin step
-    xk = xk + alpha * grad + sqrt(2 * alpha) * noise_vec;
+    % compute the step length and saturate if necessary
+    step_direction = alpha * grad + sqrt(2 * alpha) * noise_vec;
+    step_direction_length = norm(step_direction);
+    if step_direction_length > max_step_length
+        step_direction = (step_direction / step_direction_length) * max_step_length;
+    end
+
+    % take Langevin dynamics step
+    xk = xk + step_direction;
 
     % save the new point
     x(i, :) = xk';
@@ -86,17 +91,49 @@ xlabel('x'); ylabel('y');
 title('2D Heat Map of Multivariate Gaussian');
 colorbar;
 
-% plot the mean 
-plot(mu(1), mu(2), 'k.', 'MarkerSize', 30);
-
 % plot the gradient field
 quiver(X, Y, Z_grad(:, :, 1), Z_grad(:, :, 2), 'r');
 
 % plot the Langevin trajectory
-plot(x(:, 1), x(:, 2), 'g-', 'LineWidth', 2);
-plot(x(1, 1), x(1, 2), 'ko', 'MarkerSize', 8, 'MarkerFaceColor', 'b', 'LineWidth', 2);
-plot(x(end, 1), x(end, 2), 'ko', 'MarkerSize', 8, 'MarkerFaceColor', 'r', 'LineWidth', 2);
+% plot(x(:, 1), x(:, 2), 'g-', 'LineWidth', 2);
+% plot(x(1, 1), x(1, 2), 'ko', 'MarkerSize', 8, 'MarkerFaceColor', 'b', 'LineWidth', 2);
+% plot(x(end, 1), x(end, 2), 'ko', 'MarkerSize', 8, 'MarkerFaceColor', 'r', 'LineWidth', 2);
 
+% plot the mean 
+plot(mu(1), mu(2), 'k.', 'MarkerSize', 30);
+
+% Parameters
+pts_per_sec = 50;       % number of points to plot per second
+trail_length = 15;      % number of points to keep in fading trail
+trail_color = [0, 1, 0]; % red color
+
+% animate the Langevin trajectory with fading trail
+for i = 1:num_steps
+    % determine the range of indices for trail
+    start_idx = max(1, i - trail_length + 1);
+    trail_indices = start_idx:i;
+    
+    % compute alpha fading values from oldest to newest
+    num_trail_pts = length(trail_indices);
+    alphas = linspace(0.1, 1.0, num_trail_pts);
+    
+    % delete previous trail
+    if exist('trail_plot', 'var')
+        delete(trail_plot);
+    end
+    
+    % plot trail with fading opacity using scatter
+    trail_plot = gobjects(num_trail_pts, 1);
+    for k = 1:num_trail_pts
+        idx = trail_indices(k);
+        trail_plot(k) = scatter(x(idx, 1), x(idx, 2), 40, ...
+            'MarkerFaceColor', trail_color, ...
+            'MarkerEdgeColor', 'none', ...
+            'MarkerFaceAlpha', alphas(k));
+    end
+    
+    pause(1 / pts_per_sec);
+end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % helper functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -132,7 +169,8 @@ end
 
 % gradient of the log normal pdf
 function grad = log_normal_pdf_grad(x, mu, sigma)
-    % comkpute the inverse of the covariance matrix
+    
+    % compute the inverse of the covariance matrix
     inv_sigma = inv(sigma);
 
     % compute the gradient
