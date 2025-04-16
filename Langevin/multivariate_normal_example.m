@@ -39,8 +39,9 @@ for i = 1:n_dists
 end
 
 % Create a grid of (x, y) points
-x_range = linspace(mu_avg(1) - 5*sqrt(sigma_avg(1,1)), mu_avg(1) + 5*sqrt(sigma_avg(1,1)), 50);
-y_range = linspace(mu_avg(2) - 5*sqrt(sigma_avg(2,2)), mu_avg(2) + 5*sqrt(sigma_avg(2,2)), 50);
+n_pts = 50;
+x_range = linspace(mu_avg(1) - 5*sqrt(sigma_avg(1,1)), mu_avg(1) + 5*sqrt(sigma_avg(1,1)), n_pts);
+y_range = linspace(mu_avg(2) - 5*sqrt(sigma_avg(2,2)), mu_avg(2) + 5*sqrt(sigma_avg(2,2)), n_pts);
 [X, Y] = meshgrid(x_range, y_range);
 
 % Pack into points
