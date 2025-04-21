@@ -5,8 +5,25 @@ close all; clear all; clc;
 
 % select the number of distributions
 n_dists = 3;
-mu_xlim = 2.0;
-mu_ylim = 2.0;
+mu_xlim = 2.5;
+mu_ylim = 2.5;
+
+% vector field settings
+n_pts = 40;
+
+% create containers for langevin dynamics
+n_trajectories = 50;
+
+% Langevin parameters
+alpha = 0.006;          % time step
+num_steps = 200;        % number of steps
+max_step_length = 1.0;  % maximum step length (to prevent instability)
+annealing = 1;          % annealing effect on or off (for Langevin dynamics)
+
+% Langevin trajectories
+pts_per_sec = 50;
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % generate random means and covariances
 mu_list = zeros(2, 1, n_dists);
@@ -17,7 +34,7 @@ for i = 1:n_dists
     
     % sample a random covariance matrix
     % Sigma_list(:, :, i) = sample_pos_def_matrix(2);
-    Sigma_list(:, :, i) = 0.3 * eye(2);
+    Sigma_list(:, :, i) = 0.2 * eye(2);
 end
 
 % sample some weights
@@ -31,7 +48,6 @@ for i = 1:n_dists
 end
 
 % create a grid of (x, y) points
-n_pts = 50;
 x_range = linspace(mu_avg(1) - 3.0, mu_avg(1) + 3.0, n_pts);
 y_range = linspace(mu_avg(2) - 3.0, mu_avg(2) + 3.0, n_pts);
 [X, Y] = meshgrid(x_range, y_range);
@@ -63,8 +79,55 @@ end
 
 % Reshape Z to match the grid dimensions of X and Y
 Z = reshape(Z, size(X));
-% Ensure Z_grad matches the dimensions of X and Y
-% Z_grad = zeros(size(X, 1), size(X, 2), 2);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Langevin Dynamics
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Langevin container
+X_trajs = zeros(num_steps, 2, n_trajectories); % initialize Langevin trajectory
+
+% populate the intial conditions
+for i = 1:n_trajectories
+    % sample a random point in the domain
+    x0 = sample_vector(2, mu_xlim, mu_ylim);
+
+    % insert into the Langevin container
+    X_trajs(1, :, i) = x0';
+end
+
+% simulate the Langevin dynamics (realized with Euler-Maruyama)
+for j = 1:n_trajectories
+    for i = 2:num_steps
+        % compute the gradient of the probability density at the current point
+        xk = X_trajs(i-1, :, j)';
+        grad = normal_pdf_GMM_grad(xk, mu_list, Sigma_list, weights);
+
+        % get a noise vector from standard normal distribution
+        noise_vec = randn(2, 1);
+
+        % annealing effect
+        if annealing == 1
+            % compute the annealing factor
+            anneal_factor = 1 - (i / num_steps);
+        else
+            anneal_factor = 1;
+        end
+
+        % compute the step length and saturate if necessary
+        step_direction = anneal_factor * (alpha * grad + sqrt(2 * alpha) * noise_vec);
+        step_direction_length = norm(step_direction);
+        if step_direction_length > max_step_length
+            step_direction = (step_direction / step_direction_length) * max_step_length;
+        end
+
+        % take Langevin dynamics step
+        xk = xk + step_direction;
+
+        % save the new point
+        X_trajs(i, :, j) = xk';
+    end
+end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Plotting
@@ -73,6 +136,8 @@ Z = reshape(Z, size(X));
 % Plot the surface
 figure(1);
 set(gcf, 'WindowState', 'maximized');
+
+% plot the GMM
 subplot(1, 2, 1);
 hold on;
 surf(X, Y, Z, 'EdgeColor', 'none');
@@ -82,7 +147,7 @@ colormap turbo;
 colorbar;
 view(45, 45); % 3D view angle
 
-% Plot the gradient field
+% plot the gradient field
 subplot(1, 2, 2);
 hold on;
 imagesc(x_range, y_range, Z);
@@ -95,6 +160,30 @@ colorbar;
 
 % plot the gradient field
 quiver(X, Y, Z_grad(:, :, 1), Z_grad(:, :, 2), 'r');
+
+% animate the trajecotories
+pause(0.5);
+for i = 1:num_steps
+    % plot the Langevin trajectories
+    pts = [];
+    for j = 1:n_trajectories
+        pt = plot(X_trajs(i, 1, j), X_trajs(i, 2, j), 'go', 'MarkerEdgeColor', 'k', 'MarkerFaceColor', 'g', 'MarkerSize', 8);
+        pts = [pts; pt];
+    end
+
+    % set the title
+    title(['Langevin Dynamics Trajectories (Step ' num2str(i) ' / ' num2str(num_steps) ')']);
+
+    drawnow;
+
+    % pause for a moment
+    % pause(1/pts_per_sec);
+
+    if i ~= num_steps
+        % delete the previous points
+        delete(pts);
+    end
+end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Helper Functions
@@ -179,9 +268,9 @@ end
 
 % sample a random vector
 function v = sample_vector(n, mu_xlim, mu_ylim)
-    % random vecotr
-    v = [rand(1)*2*mu_xlim - mu_xlim; 
-         rand(1)*2*mu_ylim - mu_ylim];
+    % random vector with uniform distribution
+    v = [(rand(1) * (2 * mu_xlim)) - mu_xlim; 
+         (rand(1) * (2 * mu_ylim)) - mu_ylim];
 end
 
 % sample a positive definite symmetric matrix
